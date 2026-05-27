@@ -1,3 +1,38 @@
-#+TITLE: asdasdasd
-* asdas
-** sasdasd
+* 概要
+
+本スクリプトは、アライドテレシス製ルータ機器（ARシリーズ、ARXシリーズ）のConfigファイルから、「ゾーン・ネットワーク・ホスト」の階層構造オブジェクトと「ファイアウォールルール」をパース（解析）して抽出・紐付け、それらをIPアドレスやサブネット単位にすべて展開して、可読性の高いCSV形式（標準出力）にマッピング・変換するツールです。
+
+* 処理フロー
+
+スクリプト全体の実行の流れは以下の通りです。
+#+begin_export ascii
+[Configファイルの行順次読み込み (Get-Content)]
+│
+├──► 【フラグなし】
+│     ⇒ zone または firewall ブロックの開始を監視
+│
+├──► 【Zoneブロック内処理 (readzone)】
+│     ⇒ 階層構造(ZONE_DATA / NETWORK / HOST)を動的に生成・格納
+│
+└──► 【Firewallブロック内処理 (readfirewall)】
+⇒ 各ルールの条件(NO, ACTION, APP, FROM, TO, STATE)を抽出して保持
+│
+[データ展開・出力 (mainループ / readablefirewall)]
+│
+├──► ルールの FROM / TO 表記（"zone.network.host" 等）をドット分割で解析
+├──► 対応するIP群・サブネット群を階層オブジェクトからクロス検索
+└──► すべての組み合わせを総当たり(ネストループ)でCSV形式に展開出力
+#+end_export
+
+* クラス定義とデータ構造
+
+
+| クラス名 | プロパティ/役割      | 主なメソッドと処理                                |
+|----------+----------------------+---------------------------------------------------|
+| IPADDRES | [IPAddress]$ipaddres | GetIP(): dynamic 判定時はインターフェース名を      |
+|          | [string]$dynamic     | 固定IP時はIP文字列を返却する。                     |
+|          | [string]$interface   |                                                   |
+|----------+----------------------+---------------------------------------------------|
+| HOST     | [string]$name        | GetList(): 自身に紐づくすべてのIPアドレスを、      |
+|          | $ipaddress (List)    | ZONE名付きの PSCustomObject リストに変換して返す。 |
+|          | [string]$zonename    |                                                   |
