@@ -29,10 +29,10 @@
 
 | クラス名 | プロパティ/役割      | 主なメソッドと処理                                |
 |----------+----------------------+---------------------------------------------------|
-| IPADDRES | [IPAddress]$ipaddres | GetIP(): dynamic 判定時はインターフェース名を      |
-|          | [string]$dynamic     | 固定IP時はIP文字列を返却する。                     |
+| IPADDRES | [IPAddress]$ipaddres | GetIP(): dynamic 判定時はインターフェース名を固定IP時はIP文字列を返却する。      |
+|          | [string]$dynamic     |                      |
 |          | [string]$interface   |                                                   |
 |----------+----------------------+---------------------------------------------------|
-| HOST     | [string]$name        | GetList(): 自身に紐づくすべてのIPアドレスを、      |
-|          | $ipaddress (List)    | ZONE名付きの PSCustomObject リストに変換して返す。 |
+| HOST     | [string]$name        | GetList(): 自身に紐づくすべてのIPアドレスを、ZONE名付きの PSCustomObject リストに変換して返す。      |
+|          | $ipaddress (List)    |  |
 |          | [string]$zonename    |                                                   |
