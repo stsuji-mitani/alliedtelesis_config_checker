@@ -1,0 +1,2 @@
+# alliedtelesis_config_checker
+アライドテレシスのルータ、スイッチのConfigの可読化を支援する
