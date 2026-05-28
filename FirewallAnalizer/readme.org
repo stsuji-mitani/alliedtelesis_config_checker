@@ -1,38 +1,72 @@
-* 概要
+#+TITLE: 階層型ファイアウォール設定解析スクリプト 仕様書
+#+AUTHOR: AI Collaborator
+#+DATE: 2026-05-28
+#+OPTIONS: toc:2 num:t todo:nil
 
-本スクリプトは、アライドテレシス製ルータ機器（ARシリーズ、ARXシリーズ）のConfigファイルから、「ゾーン・ネットワーク・ホスト」の階層構造オブジェクトと「ファイアウォールルール」をパース（解析）して抽出・紐付け、それらをIPアドレスやサブネット単位にすべて展開して、可読性の高いCSV形式（標準出力）にマッピング・変換するツールです。
+* 1. 概要
+本スクリプト（=FirewallAnalizer.ps1=）は、テキスト形式のネットワーク機器Configファイルから「ゾーン・ネットワーク・ホスト」の階層構造オブジェクトと「ファイアウォールルール」をパース（解析）して抽出・紐付け、それらをIPアドレスやサブネット単位にすべて展開して、可読性の高いCSV形式（標準出力）にマッピング・変換するツールです。
 
-* 処理フロー
+* 2. 処理フロー
+Configファイルを1行ずつ読み込み、状態フラグに応じて適切なパース関数へ処理を振り分けます。最終的に、抽出したルールとアドレス定義をクロスさせて総当たり展開を行います。
 
-スクリプト全体の実行の流れは以下の通りです。
+1. *Configファイルの行順次読み込み (Get-Content)*
+   - 【フラグなし】: =zone= または =firewall= ブロックの開始を監視
+   - 【Zoneブロック内処理 (readzone)】: 階層構造（ZONE_DATA / NETWORK / HOST）を動的に生成・格納
+   - 【Firewallブロック内処理 (readfirewall)】: 各ルールの条件（NO, ACTION, APP, FROM, TO, STATE）を抽出して保持
+2. *データ展開・出力 (mainループ / readablefirewall)*
+   - ルールの FROM / TO 表記（"zone.network.host" 等）をドット分割で解析
+   - 対応するIP群・サブネット群を階層オブジェクトからクロス検索
+   - すべての組み合わせを総当たり（ネストループ）でCSV形式に展開出力
 
-[Configファイルの行順次読み込み (Get-Content)]
-│
-├──► 【フラグなし】
-│     ⇒ zone または firewall ブロックの開始を監視
-│
-├──► 【Zoneブロック内処理 (readzone)】
-│     ⇒ 階層構造(ZONE_DATA / NETWORK / HOST)を動的に生成・格納
-│
-└──► 【Firewallブロック内処理 (readfirewall)】
-⇒ 各ルールの条件(NO, ACTION, APP, FROM, TO, STATE)を抽出して保持
-│
-[データ展開・出力 (mainループ / readablefirewall)]
-│
-├──► ルールの FROM / TO 表記（"zone.network.host" 等）をドット分割で解析
-├──► 対応するIP群・サブネット群を階層オブジェクトからクロス検索
-└──► すべての組み合わせを総当たり(ネストループ)でCSV形式に展開出力
+* 3. クラス定義とデータ構造
+Config内のネスト（階層）構造をオブジェクト指向で表現するため、5つのカスタムクラスが定義されています。
 
+| クラス名 | プロパティ / 役割 | 主なメソッドと処理内容 |
+|----------+-------------------+------------------------|
+| *IPADDRES* | =[System.Net.IPAddress]$ipaddres= <br> =[string]$dynamic= <br> =[string]$interface= | *GetIP()*: =dynamic= 判定時はインターフェース名を、固定IP時はIP文字列を返却する。 |
+| *HOST* | =[string]$name= <br> =$ipaddress (List)= <br> =[string]$zonename= | *GetList()*: 自身に紐づくすべてのIPアドレスを、ZONE名付きの =PSCustomObject= リストに変換して返す。 |
+| *IPSUBNET* | =[string]$zonename= <br> =[string]$ipsubnet= <br> =[string]$ifname= | サブネット情報を保持するコンストラクタ。 |
+| *NETWORK* | =[string]$zonename= <br> =[string]$name= <br> =$ipsubnets (List)= <br> =$hosts (List)= | *GetList()*: 自身に属するサブネット情報を =PSCustomObject= のリストに変換して返す。 |
+| *ZONE_DATA* | =[string]$name= <br> =$nwlist (List)= | *GetList()*: 所属する全ネットワークからサブネット情報を集約し、ひとつの =PSCustomObject= リストに結合して返す。 |
 
-* クラス定義とデータ構造
+* 4. 主要関数仕様
 
+** 4.1. ブロック制御・パース関数
+PowerShellの*ダイナミックスコープ*（Scope）の特性を利用し、 =main= 関数内で初期化されたハッシュテーブル =$zonelist= およびリスト =$filewalllist= に対して、各子関数が直接データの参照や追加（=.add()=）を行います。
 
-| クラス名 | プロパティ/役割      | 主なメソッドと処理                                |
-|----------+----------------------+---------------------------------------------------|
-| IPADDRES | [IPAddress]$ipaddres | GetIP(): dynamic 判定時はインターフェース名を固定IP時はIP文字列を返却する。      |
-|          | [string]$dynamic     |                      |
-|          | [string]$interface   |                                                   |
-|----------+----------------------+---------------------------------------------------|
-| HOST     | [string]$name        | GetList(): 自身に紐づくすべてのIPアドレスを、ZONE名付きの PSCustomObject リストに変換して返す。      |
-|          | $ipaddress (List)    |  |
-|          | [string]$zonename    |                                                   |
+*** startzone / readzone
+- =^zone (.*$)= を検知すると =ZONE_DATA= インスタンスを作成し、 =$zonelist= へ登録。
+- 以降、インデントされた =network= -> =ip subnet= -> =host= -> =ip address= を順次読み込み、直前に作成された末尾の要素（=[-1]=）に対して子要素を動的に追加。
+- =!= （感嘆符）の行を検知すると、Zoneブロックの処理を終了。
+
+*** startfirewall / readfirewall
+- =^firewall$= 行から =!= 行までの間をファイアウォールブロックとして処理。
+- 正規表現を用いて、1行から =NO= （ルール番号）、 =ACTION= （動作）、 =APP= （アプリ/プロトコル）、 =FROM= （送信元）、 =TO= （送信先）を抽出。
+- 送信先（TO）の末尾に =no-state-enforcement= の記述がある場合は、ステートフル検査フラグ（=STATE=）を =$false= に設定し、 =$filewalllist= にオブジェクトを追加。
+
+** 4.2. アドレス解析・展開関数
+
+*** splitaddres
+引数で受け取ったオブジェクト表記（例: =private.ST.enkaku=）をドット（=.=）で分割し、その階層の深さ（要素数）に応じて、合致するアドレス情報を検索します。
+1. *要素数 1（例: private）*: ゾーン全体のリストを取得（=ZONE_DATA.GetList()=）
+2. *要素数 2（例: private.ST）*: 特定のネットワークに属するサブネットリストを取得（=NETWORK.GetList()=）
+3. *要素数 3（例: private.ST.enkaku）*: 特定のホストに紐づくIPアドレスリストを取得（=HOST.GetList()=）
+
+*** readablefirewall
+1. 1つのルールに対し、 =splitaddres= で展開された「送信元オブジェクト群」と「送信先オブジェクト群」を取得。
+2. 2重の =foreach= ループによって*総当たりで結合*。
+3. 結合されたデータは、カンマ区切りのフォーマット（CSV形式）でコンソール画面（=Write-Host=）に出力。
+
+* 5. 出力フォーマット（出力ログ仕様）
+=readablefirewall= 実行時に、各ルールごとにヘッダーと展開されたアドレス一覧が以下のフォーマットで出力されます。
+
+#+BEGIN_SRC csv
+NO,ACTION,APP,FROM:ZONE,FROM:SUBNET,TO:ZONE,TO:SUBNET,STATEFULL
+10,permit,ping,private.ST,192.168.20.99,public.WAN,0.0.0.0/0,True
+#+END_SRC
+
+* 6. 技術的な注意点・リファクタリングの視点
+- *ダイナミックスコープの挙動について*
+  現在の実装（ =$zonelist= や =$filewalllist= へのアイテム追加）は正常に動作しますが、将来的にコードをモジュール化したり複数ファイルに分割したりする場合、この参照関係が切れる可能性があります。その場合は、引数による明示的なオブジェクトの受け渡し、あるいは明示的なスクリプトスコープ（ =$script:zonelist= ）等への移行を検討すると、より堅牢なコードになります。
+- *NETWORK クラスにおけるループ処理の冗長性*
+  =NETWORK= クラスの =GetList()= 内で、 =foreach($t1 in $node)= という記述がありますが、現在の =$node= は =IPSUBNET= クラスの単一インスタンス（コレクションではない）であるため、この内側のループは常に1回のみの処理となります。動作上の問題はありませんが、記述としては冗長です。
