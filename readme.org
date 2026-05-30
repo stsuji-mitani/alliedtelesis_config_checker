@@ -1,0 +1,23 @@
+#+TITLE: alliedtelesis_config_checker
+-----
+
+Windows環境からの利用を想定して、Powershell(PWSHv7)にて実行可能なスクリプトをまとめています。
+Linuxでは、PWSHコンテナを経由して実行可能です。
+
+
+アライドテレシスのルータ、スイッチのConfigの可読化を支援する
+* GetRemoteConfig_via_ssh.ps1
+
+SSH経由で、RunningConfigを取得する。
+
+
+
+* FirewallAnalizer
+AR,ARXシリーズのFirewallルールをCSV形式に変換する。
+エンティティー定義は、IPサブネット・IPアドレスに分解する。
+
+
+
+
+
+
