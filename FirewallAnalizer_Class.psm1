@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-
+#Test
 
 #### CLASS 定義 ######
 class IPADDRES {
