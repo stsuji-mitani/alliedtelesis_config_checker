@@ -30,14 +30,16 @@ function main(){
       } | ConvertFrom-Csv
     
 
-    $csv | %{
+    #$csv | %{
+    foreach($line in $csv){
+        #$_ = $line
         # リモート接続
-        write-host ($_.ip +" config to " + $_.outfile)
+        write-host ($line.ip +" config to " + $line.outfile)
         # 平文パスワードをPwsh用に変換する
-        $spass = convertto-securestring -string $_.password -asplaintext -force
-        $cre = New-object system.Management.Automation.pscredential($_.username,$spass)
+        $spass = convertto-securestring -string $line.password -asplaintext -force
+        $cre = New-object system.Management.Automation.pscredential($line.username,$spass)
         # SSH接続
-        $sshsession = New-SSHSession -computername $_.ip -credential $cre -acceptkey
+        $sshsession = New-SSHSession -computername $line.ip -credential $cre -acceptkey
         $session = Get-SSHSession -sessionid $sshsession.sessionid
         # コマンド実行(入力待ちがないパターン）
         invoke-sshcommand -SSHSession $session -command "enable" | out-null
@@ -51,7 +53,7 @@ function main(){
         Remove-SSHSession -SessionId $sshsession.sessionid | out-null
 
         # 結果を出力
-        $out.Output | out-file -path $_.outfile -Encoding utf8
+        $out.Output | out-file -path $line.outfile -Encoding utf8
 
     }
     
@@ -61,7 +63,7 @@ function main(){
 # CSVファイルの存在確認
 function ExistCSV(){
     param($csv)
-    if($csv -eq $null){
+    if($csv -eq ""){
         write-host "CSVファイルを指定してください" -ForegroundColor Yellow
         exit
     }
