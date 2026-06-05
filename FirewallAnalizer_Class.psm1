@@ -316,12 +316,13 @@ class ARConfig{
         $t1 = $ob -split "\."
         $res = @()
         #$res = [PSCustomObject[]]::new()
+        
         if($t1.count -eq 1){
             # FROMノードがゾーン名指定
             # ゾーン名でゾーン定義を選択
             #return $zonelist[$t1[0]].nwlist.GetList()
             $res= $this.zonelist[$t1[0]].GetList()
-        
+           
         
         }elseif($t1.count -eq 2){
             # FROMノードがネットワーク名指定
@@ -335,13 +336,12 @@ class ARConfig{
             # FROMノードがHOST名指定
             $zonename = $t1[0]
             $hostname = $t1[2]
+
             foreach($ns1 in $this.zonelist[$zonename].nwlist){ #zoneリストのうち、1つが選択され、NETWORK一覧を処理。
-                foreach($h1 in $ns1.where({$_.name -eq $t1[1]}).hosts){ # NETWORKのうち、1つが選択され、ホスト一覧を処理。 
-                    #foreach($h1 in $n1.hosts){
-                        if($h1.name -eq $hostnameT名が一致したら
-                            $res = $h1.GetList() 
-                        }
-                    #}
+                foreach($n1 in $ns1.where({$_.name -eq $t1[1]})){ # NETWORKのうち、1つが選択され、ホスト一覧を処理。 
+                    foreach($h1 in $n1.hosts.where({$_.name -eq $hostname})){ # HOSTのうち、1つが選択され、IPアドレス一覧を処理。
+                        $res = $h1.GetList() 
+                    }
                 }
             }
             #>
@@ -376,7 +376,7 @@ class ARConfig{
     Firewallオブジェクトの各エントリをアドレス表記に置き換える。
     $ruleはconfig上は、1行に該当する。
     #>
-    [void]readablefirewall([PSCustomObject]$rule){
+    [void]ReadableFirewall([PSCustomObject]$rule){
         
         $fromob = $this.splitaddres($rule.FROM)
         $toob = $this.splitaddres($rule.TO)
@@ -408,9 +408,9 @@ class ARConfig{
 
         #$this.filewalllist|convertto-csv
         foreach($a in $this.filewalllist){
-            $this.readablefirewall($a)
+            $this.ReadableFirewall($a)
         }
-        #$this.readablefirewall($this.filewalllist[1])
+        #$this.ReadableFirewall($this.filewalllist[1])
     
     }
 
