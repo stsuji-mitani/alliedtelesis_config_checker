@@ -181,7 +181,7 @@ class ZONE_DATA{
 }
 
 
-class ARConfig{
+class ARCONFIG{
     
     $filename =""
     $zonelist=@{}
@@ -189,7 +189,7 @@ class ARConfig{
     # フラグ初期化
     [string]$zoneflag = ""
     [bool]$firewallflag = $false
-    ARConfig(){
+    ARCONFIG(){
     }
     
 
@@ -395,23 +395,9 @@ class ARConfig{
 
 
     [void]ExportCSVtoFirewall(){
-        ### TEST Code ###
-        #foreach($k in $this.zonelist.Keys){
-        #   $this.zonelist[$k].GetList()|convertto-csv
-        #}
-        #$zonelist["fukui-city-center"].nwlist.GetList()|?{$_.NETWORK -match "252"}|%{
-        #    $_
-        #}
-        #$zonelist["fukui-city-center"].nwlist|?{$_.name -match "252"}|%{
-        #    $_
-        #}
-
-        #$this.filewalllist|convertto-csv
         foreach($a in $this.filewalllist){
             $this.ReadableFirewall($a)
         }
-        #$this.ReadableFirewall($this.filewalllist[1])
-    
     }
 
 }

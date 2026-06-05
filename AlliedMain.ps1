@@ -11,18 +11,9 @@ function main{
 
     #$hostname = "AR4050S"
     
-    [ARConfig]$a = [ARConfig]::new()
+    [ARCONFIG]$a = [ARCONFIG]::new()
     $a.ReadConfig($filename)
-    # Firewallルールを解析
-    #
-    #foreach($b in $a.filewalllist){
-    #        $a.ReadableFirewall($b)
-    #}
-
-
     $a.ExportCSVtoFirewall()
-    #$a.filewalllist[7]
-    #$a.ReadableFirewall($a.filewalllist[7])
     
 
 
