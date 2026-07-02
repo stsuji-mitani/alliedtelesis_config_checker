@@ -424,7 +424,7 @@ function main {
 
 ## Main ################
 
-main -filename "sample_config.txt"
+#main -filename "sample_config.txt"
 
 
 
