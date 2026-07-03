@@ -354,7 +354,7 @@ class ARCONFIG{
 
     [void]ReadConfig($filename){
         # Configファイルを読み込む
-        #Get-Content -Path $filename | forEach-Object {
+        
         foreach($line in get-content -path $filename){    
             if($this.zoneflag -ne ""){
                 # zone定義ブロックを処理する
@@ -366,6 +366,15 @@ class ARCONFIG{
                 # GlobalなConfigエリア用
                 $this.zoneflag     = $this.startzone($line)
                 $this.firewallflag = $this.startfirewall($line)
+                # ホスト名定義
+                # VLAN一覧
+                # NAT
+                # PBR
+                # interface(port)
+                # interface (vlan)
+                # interface tunnel
+                # Static Route
+
             }
         }
 
@@ -394,7 +403,7 @@ class ARCONFIG{
 
 
 
-    [void]ExportCSVtoFirewall(){
+    [void]ExportCSVfromFirewall(){
         foreach($a in $this.filewalllist){
             $this.ReadableFirewall($a)
         }
