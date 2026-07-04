@@ -13,8 +13,8 @@ function main{
     
     [ARCONFIG]$a = [ARCONFIG]::new()
     $a.ReadConfig($filename)
-    $a.ExportCSVfromFirewall()
-    
+    #$a.ExportCSVfromFirewall()
+    echo $a.hostname
 
 
 

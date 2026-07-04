@@ -181,16 +181,24 @@ class ZONE_DATA{
 }
 
 
+class VLAN{
+    [int]$vlanid
+    [string]$vlanname
+    VLAN($id){
+        $this.vlanid = $id
+    }
+
+}
+
 class ARCONFIG{
     
     $filename =""
-    $zonelist=@{}
-    $filewalllist=[System.Collections.Generic.List[PSCustomObject]]::new()
-    # フラグ初期化
-    [string]$zoneflag = ""
-    [bool]$firewallflag = $false
-    ARCONFIG(){
-    }
+    $zonelist=@{} # 連想配列
+    $filewalllist=[System.Collections.Generic.List[PSCustomObject]]::new() # 配列
+    $hostname = ""
+    $vlanlist = @{} # 連想配列
+
+    ARCONFIG(){}
     
 
     [string]startzone($line) {
@@ -223,10 +231,13 @@ class ARCONFIG{
     }
 
 
-    <############################################################
+    
+    <#
+    ###########################################################
     ^firewall$
     行を見つけた場合、Firewallブロックに入ったとして、フラグを立てる
-    #############################################################>
+    ############################################################
+    #>
     [bool]startfirewall($line){
         $flag = $false
         if($line -match "^firewall$"){
@@ -235,7 +246,8 @@ class ARCONFIG{
         return $flag
     }
 
-    <#############################################################
+    <#
+    #############################################################
     行を読み込み、各処理を実施
     1) ^!$ 
     Firewallブロックを抜けたとして、フラグを解除する
@@ -245,7 +257,8 @@ class ARCONFIG{
     Firewallルールを分析し、PSCustomObject格納して、グローバル変数(配列)に追加する。
     例： rule 10 permit ping from public to public
     
-    #############################################################>
+    #############################################################
+    #>
     [bool]readfirewall($line){
         $res = $true
         if ($line -match "^!$"){
@@ -309,10 +322,10 @@ class ARCONFIG{
     <#
     受け取った名前から、ゾーン情報(PSCustomObject[])を返す。
     zone.network.host
-
     #>
     [PSCustomObject[]]splitaddres($ob){
-        #  "."で分割して、エントリー記述（zone.network.host）のどこまでが指定されているかを判断する。
+        #  "."で分割して、エントリー記述（zone.network.host）の
+        #  どこまでが指定されているかを判断する。
         $t1 = $ob -split "\."
         $res = @()
         #$res = [PSCustomObject[]]::new()
@@ -335,39 +348,84 @@ class ARCONFIG{
         }elseif($t1.count -eq 3){
             # FROMノードがHOST名指定
             $zonename = $t1[0]
-            $hostname = $t1[2]
+            $e_hostname = $t1[2]
 
-            foreach($ns1 in $this.zonelist[$zonename].nwlist){ #zoneリストのうち、1つが選択され、NETWORK一覧を処理。
-                foreach($n1 in $ns1.where({$_.name -eq $t1[1]})){ # NETWORKのうち、1つが選択され、ホスト一覧を処理。 
-                    foreach($h1 in $n1.hosts.where({$_.name -eq $hostname})){ # HOSTのうち、1つが選択され、IPアドレス一覧を処理。
+            foreach($ns1 in $this.zonelist[$zonename].nwlist){
+                #zoneリストのうち、1つが選択され、NETWORK一覧を処理。
+                foreach($n1 in $ns1.where({$_.name -eq $t1[1]})){
+                    # NETWORKのうち、1つが選択され、ホスト一覧を処理。 
+                    foreach($h1 in $n1.hosts.where({$_.name -eq $e_hostname})){
+                        # HOSTのうち、1つが選択され、IPアドレス一覧を処理。
                         $res = $h1.GetList() 
                     }
                 }
             }
-            #>
+
         }   
     
         return $res
     
     }
 
+    [void]GetHostName($line){
+        if($line -match "hostname (.*)$"){
+            $this.hostname = $Matches[1]
+        }
+    }
+
+    [bool]startvlan($line){
+        if($line -eq "vlan database"){
+            return $true
+        }
+        return $false
+    }
+
+    [bool]readvlan($line){
+        # vlan 10 name SSS  -> 無視
+        # vlan 10,20,80,1024 state enable ->解析対象
+        if ($line -match "^!$"){
+            return $false
+        }
+        if($line -match "vlan([0-9]*) name (.*)"){
+        }
+        
+        if($line -match "vlan ([0-9,]*)"){
+            $tempA = $Matches[1]
+            $vlanarray = $tempA -split ','
+            foreach($id in $vlanarray){
+                $this.vlanlist[$id] = [VLAN]::new($id)
+
+            }
+        }
+        
+        return $true
+    }
 
     [void]ReadConfig($filename){
+        # フラグ初期化
+        [string]$zoneflag = ""
+        [bool]$firewallflag = $false
+        [bool]$vlandatabaseflag= $false
+        
         # Configファイルを読み込む
         
         foreach($line in get-content -path $filename){    
-            if($this.zoneflag -ne ""){
+            if($zoneflag -ne ""){
                 # zone定義ブロックを処理する
-                $this.zoneflag     = $this.readzone($line, $this.zoneflag)
-            }elseif($this.firewallflag -ne $false){
+                $zoneflag     = $this.readzone($line, $zoneflag)
+            }elseif($firewallflag){
                 # firewallブロックを処理する
-                $this.firewallflag = $this.readfirewall($line)
+                $firewallflag = $this.readfirewall($line)
+            }elseif($vlandatabaseflag){
+                $vlandatabaseflag = $this.readvlan($line)
+                
             }else{
                 # GlobalなConfigエリア用
-                $this.zoneflag     = $this.startzone($line)
-                $this.firewallflag = $this.startfirewall($line)
-                # ホスト名定義
+                $zoneflag     = $this.startzone($line)
+                $firewallflag = $this.startfirewall($line)
+                $this.GetHostName($line)
                 # VLAN一覧
+                $vlandatabaseflag = $this.startvlan($line)
                 # NAT
                 # PBR
                 # interface(port)
