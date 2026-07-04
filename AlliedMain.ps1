@@ -14,8 +14,11 @@ function main{
     [ARCONFIG]$a = [ARCONFIG]::new()
     $a.ReadConfig($filename)
     #$a.ExportCSVfromFirewall()
-    echo $a.hostname
-
+    
+    foreach($i in $a.vlanlist.values){
+        write-host $i.print()
+        #write-host $i.vlanname
+    }
 
 
 }

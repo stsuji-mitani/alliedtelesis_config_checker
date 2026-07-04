@@ -188,6 +188,10 @@ class VLAN{
         $this.vlanid = $id
     }
 
+    [void]print(){
+        write-host "vlanid: $($this.vlanid) vlanname:$($this.vlanname)"
+
+    }
 }
 
 class ARCONFIG{
@@ -381,25 +385,40 @@ class ARCONFIG{
     }
 
     [bool]readvlan($line){
-        # vlan 10 name SSS  -> 無視
-        # vlan 10,20,80,1024 state enable ->解析対象
+        # vlan 10 name SSS  -> IDと名前を取得
+        # vlan 10,20,80,1024 state enable ->IDのみ取得
         if ($line -match "^!$"){
             return $false
         }
-        if($line -match "vlan([0-9]*) name (.*)"){
+        if($line -match "vlan ([0-9]*) name (.*)"){
+            $vlanid = $Matches[1]
+            $vlanname = $Matches[2]
+            if(-not $this.vlanlist.ContainsKey("$vlanid")){
+                $this.vlanlist["$vlanid"] = [VLAN]::new($vlanid)
+            }
+            $this.vlanlist["$vlanid"].vlanname = $vlanname
+
         }
         
         if($line -match "vlan ([0-9,]*)"){
             $tempA = $Matches[1]
             $vlanarray = $tempA -split ','
             foreach($id in $vlanarray){
-                $this.vlanlist[$id] = [VLAN]::new($id)
-
+                if(-not $this.vlanlist.ContainsKey("$id")){
+                    $this.vlanlist["$id"] = [VLAN]::new($id)
+                }
             }
         }
         
         return $true
     }
+    [bool]startinterface($line){
+        if($line -eq "^interface .*"){
+            return $true
+        }
+        return $false
+    }
+
 
     [void]ReadConfig($filename){
         # フラグ初期化
@@ -424,7 +443,6 @@ class ARCONFIG{
                 $zoneflag     = $this.startzone($line)
                 $firewallflag = $this.startfirewall($line)
                 $this.GetHostName($line)
-                # VLAN一覧
                 $vlandatabaseflag = $this.startvlan($line)
                 # NAT
                 # PBR
