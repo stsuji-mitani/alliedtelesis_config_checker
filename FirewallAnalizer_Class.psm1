@@ -89,8 +89,6 @@ class NETWORK{
     }
 
     [System.Collections.Generic.List[PSCustomObject]]GetList(){
-        #$csv =[System.Collections.Generic.List[PSCustomObject]]::new()
-        
         $csv = foreach($node in $this.ipsubnets){
             [PSCustomObject]@{
                 ZONE = $this.zonename+"."+$this.name
@@ -197,7 +195,7 @@ class VLAN{
 
 class INTERFACE{
     [string]$name
-
+    [bool]$TagVLAN = $false
     
     INTERFACE($name){
         $this.name = $name
@@ -343,12 +341,9 @@ class ARCONFIG{
         #  どこまでが指定されているかを判断する。
         $t1 = $ob -split "\."
         $res = @()
-        #$res = [PSCustomObject[]]::new()
-        
         if($t1.count -eq 1){
             # FROMノードがゾーン名指定
             # ゾーン名でゾーン定義を選択
-            #return $zonelist[$t1[0]].nwlist.GetList()
             $res= $this.zonelist[$t1[0]].GetList()
            
         
@@ -430,37 +425,114 @@ class ARCONFIG{
 
         # 複数port定義
         if($line -match "^interface (port[0-9].*-.*)"){
-            write-host $Matches[1]
+
+            $pl = $this.SplitPortName($Matches[1])
+            foreach($i in $pl){
+                $this.interfacelist.add([INTERFACE]::new($i))
+            }
+            
             return $Matches[1]
         }
         # 単独port定義
         if($line -match "^interface (port[0-9].*)"){
-            write-host "aa"#$Matches[1]
+
+            $this.interfacelist.add([INTERFACE]::new($Matches[1]))
             return $Matches[1]
         }
         # ethインタフェイス
         if($line -match "^interface (eth[0-9]+)"){
-            
+            $this.interfacelist.add([INTERFACE]::new($Matches[1]))
+            return $Matches[1]
+        }
+        # vlanインタフェイス
+        if($line -match "~interface (vlan[0-9]+)"){
+            $this.interfacelist.add([INTERFACE]::new($Matches[1]))
+            return $Matches[1]
+        }
+
+        # tunnelインタフェイス
+        if($line -match "~interface (tunnel[0-9]+)"){
+            $this.interfacelist.add([INTERFACE]::new($Matches[1]))
             return $Matches[1]
         }
         
 
-        
-        return $false
+        return ""
     }
 
-    [string]readinterface($line,$interfacename){
 
+    [System.Collections.ArrayList]SplitPortName($name){
+        $portlist = New-Object System.Collections.ArrayList
+        # interfaceのリスト化
+        # port名が複数系の場合は、分離する。
+        # port1.0.2-1.0.8  -> port1.0.2 port1.0.3 ... port1.0.8 
+        if($name -match "port(.*)-(.*)"){
+
+            $startif = $Matches[1] 
+            $endif = $Matches[2]
+            $startif -match "([0-9]+)`.([0-9]+)`.([0-9]+)"
+            $port1num = [string]$Matches[1]
+            $port2num = [string]$Matches[2]
+            $startnum = [int]$Matches[3]
+
+            $endif -match "[0-9]+`.[0-9]+`.([0-9]+)"
+            $endnum = [int]$Matches[1]
+            
+            for($i = $startnum;$i -le $endnum;$i++){
+                $portname = "port" + $port1num + "." + $port2num + "." + $i
+                $portlist.Add($portname)
+            }
+        }elseif($name -match "port.*"){
+            # 単独の場合は、そのまま
+            $portlist.add($name)
+        }
+
+        return $portlist
+
+    }
+    
+    [void]readinterface_port($line,$interfacename){
+
+        $pl = $this.SplitPortName($interfacename)
+
+
+        
+        # ブロック内の解析
+        if($line -eq " switchport mode access"){
+            # VLANモード：UnTag
+            foreach($i in $pl){
+                
+            }
+            
+        }elseif($line -eq " switchport mode trunk"){
+            # VLANモード：Taged
+            
+            
+        }elseif($line -match " switchport access vlan 1021"){
+
+        }
+
+        
+        
+        
+    }
+    
+    [string]readinterface($line,$interfacename){
+        # ブロック終了
         if($line -match "^!"){
             return ""
         }
-        
-        if($line -match "port[0-9]+`.[0-9]+`.[0-9]+"){
-            # exp: port1.0.1
-            $this.interfacelist.add( [INTERFACE]::new($line) )
-            
-            return $interfacename
+
+        if($interfacename -match "port.*"){
+            $this.readinterface_port($line,$interfacename)
         }
+
+        
+        if($interfacename -match "eth[0-9].*"){
+
+        }
+        
+        
 
         return $interfacename
         
