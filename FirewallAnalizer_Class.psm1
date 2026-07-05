@@ -206,7 +206,7 @@ class INTERFACE{
 class ARCONFIG{
     
     $filename =""
-    $zonelist=@{} # 連想配列
+    $zonelist=@{} # 連想配列　[System.Collections.Generic.Dictionary[string, int]]::new()で書き換えたい
     $filewalllist=[System.Collections.Generic.List[PSCustomObject]]::new() # 配列
     $hostname = ""
     $vlanlist = @{} # 連想配列
