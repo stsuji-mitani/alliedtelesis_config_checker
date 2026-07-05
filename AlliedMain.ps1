@@ -15,11 +15,12 @@ function main{
     $a.ReadConfig($filename)
     #$a.ExportCSVfromFirewall()
     
-    foreach($i in $a.vlanlist.values){
-        write-host $i.print()
-        #write-host $i.vlanname
+    #foreach($i in $a.vlanlist.values){
+    #    write-host $i.print()
+    #}
+    foreach($i in $a.interfacelist){
+        #write-host $i.name
     }
-
 
 }
 

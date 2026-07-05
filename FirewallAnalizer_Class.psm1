@@ -194,6 +194,17 @@ class VLAN{
     }
 }
 
+
+class INTERFACE{
+    [string]$name
+
+    
+    INTERFACE($name){
+        $this.name = $name
+    }
+
+}
+
 class ARCONFIG{
     
     $filename =""
@@ -201,7 +212,7 @@ class ARCONFIG{
     $filewalllist=[System.Collections.Generic.List[PSCustomObject]]::new() # 配列
     $hostname = ""
     $vlanlist = @{} # 連想配列
-
+    $interfacelist = [System.Collections.Generic.List[INTERFACE]]::new() # 配列
     ARCONFIG(){}
     
 
@@ -412,11 +423,48 @@ class ARCONFIG{
         
         return $true
     }
-    [bool]startinterface($line){
-        if($line -eq "^interface .*"){
-            return $true
+
+    
+
+    [string]startinterface($line){
+
+        # 複数port定義
+        if($line -match "^interface (port[0-9].*-.*)"){
+            write-host $Matches[1]
+            return $Matches[1]
         }
+        # 単独port定義
+        if($line -match "^interface (port[0-9].*)"){
+            write-host "aa"#$Matches[1]
+            return $Matches[1]
+        }
+        # ethインタフェイス
+        if($line -match "^interface (eth[0-9]+)"){
+            
+            return $Matches[1]
+        }
+        
+
+        
         return $false
+    }
+
+    [string]readinterface($line,$interfacename){
+
+        if($line -match "^!"){
+            return ""
+        }
+        
+        if($line -match "port[0-9]+`.[0-9]+`.[0-9]+"){
+            # exp: port1.0.1
+            $this.interfacelist.add( [INTERFACE]::new($line) )
+            
+            return $interfacename
+        }
+
+        return $interfacename
+        
+        
     }
 
 
@@ -425,19 +473,21 @@ class ARCONFIG{
         [string]$zoneflag = ""
         [bool]$firewallflag = $false
         [bool]$vlandatabaseflag= $false
-        
+        [string]$interfaceflag = ""
         # Configファイルを読み込む
         
+        # 1行づつ読み、各種ブロック処理に一致している場合、
+        # ブロック事の専用分析を行う。
+        # configを読み進める処理は、ここでしか行わない。
         foreach($line in get-content -path $filename){    
             if($zoneflag -ne ""){
-                # zone定義ブロックを処理する
                 $zoneflag     = $this.readzone($line, $zoneflag)
             }elseif($firewallflag){
-                # firewallブロックを処理する
                 $firewallflag = $this.readfirewall($line)
             }elseif($vlandatabaseflag){
                 $vlandatabaseflag = $this.readvlan($line)
-                
+            }elseif($interfaceflag -ne ""){
+                $interfaceflag = $this.readinterface($line,$interfaceflag)
             }else{
                 # GlobalなConfigエリア用
                 $zoneflag     = $this.startzone($line)
@@ -447,6 +497,8 @@ class ARCONFIG{
                 # NAT
                 # PBR
                 # interface(port)
+                $interfaceflag = $this.startinterface($line)
+
                 # interface (vlan)
                 # interface tunnel
                 # Static Route
