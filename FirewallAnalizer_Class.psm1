@@ -185,7 +185,7 @@ class VLAN{
     VLAN($id){
         $this.vlanid = $id
     }
-
+    VLAN(){}
     [void]print(){
         write-host "vlanid: $($this.vlanid) vlanname:$($this.vlanname)"
 
@@ -196,9 +196,10 @@ class VLAN{
 class INTERFACE{
     [string]$name
     [bool]$TagVLAN = $false
-    
+    $vlan = [System.Collections.Generic.List[VLAN]]::new() 
     INTERFACE($name){
         $this.name = $name
+        $this.vlan.add([VLAN]::new(1)) 
     }
 
 }
@@ -206,10 +207,10 @@ class INTERFACE{
 class ARCONFIG{
     
     $filename =""
-    $zonelist=@{} # 連想配列　[System.Collections.Generic.Dictionary[string, int]]::new()で書き換えたい
+    $zonelist=[System.Collections.Generic.Dictionary[string, [ZONE_DATA]]]::new() # 連想配列
     $filewalllist=[System.Collections.Generic.List[PSCustomObject]]::new() # 配列
     $hostname = ""
-    $vlanlist = @{} # 連想配列
+    $vlanlist = [System.Collections.Generic.Dictionary[string, [VLAN]]]::new() # 連想配列
     $interfacelist = [System.Collections.Generic.List[INTERFACE]]::new() # 配列
     ARCONFIG(){}
     
@@ -495,21 +496,29 @@ class ARCONFIG{
 
         $pl = $this.SplitPortName($interfacename)
 
-
         
         # ブロック内の解析
         if($line -eq " switchport mode access"){
             # VLANモード：UnTag
             foreach($i in $pl){
-                
+                $tempA = ($this.interfacelist.Where{$_.name -eq $i})[0]
+                $tempA.TagVLAN = $false 
             }
             
         }elseif($line -eq " switchport mode trunk"){
             # VLANモード：Taged
+            foreach($i in $pl){
+                $tempA = ($this.interfacelist.Where{$_.name -eq $i})[0]
+                $tempA.TagVLAN = $true
+            }
             
-            
-        }elseif($line -match " switchport access vlan 1021"){
-
+        }elseif($line -match " switchport access vlan ([0-9]+)"){
+            $vlanid = $Matches[1]
+            foreach($i in $pl){
+                $tempA = ($this.interfacelist.Where{$_.name -eq $i})[0]
+                #$tempA.vlan.remove()
+                $tempA.vlan.add([VLAN]::new($vlanid)) 
+            }
         }
 
         
