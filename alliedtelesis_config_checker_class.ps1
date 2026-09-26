@@ -1,3 +1,5 @@
+param($path)
+
 class IMODEBASE{
     decode($line){}
 }
@@ -12,49 +14,94 @@ class GLOBALMODE :IMODEBASE{
 
 }
 class FIREWAREMODE :IMODEBASE{
+    #[System.Collections.Generic.Dictionary[string,[IPADDRESS[]] ]]$list
+    [System.Collections.Generic.List[PSCustomObject]]$list
+    FIREWAREMODE(){
+        $this.list = [System.Collections.Generic.List[PSCustomObject]]::new()
+    }
+    decode($line){
+        if($line -match "\s*protect$"){
+            return
+        }
 
+        $rule_number = 0
+        $rule_action = ""
+        $rule_app = ""
+        $rule_from = ""
+        $rule_to = ""
+        $rule_state = $true
+        # ルール番号の切り出し
+        if($line -match "\s*rule\s([0-9]*?)\s.*"){
+            $rule_number = [int]$Matches[1]
+            
+        }
+        # Action部分の切り出し
+        if($line -match "\s*rule\s\d*\s(\D.*?)\s.*"){
+            $rule_action = $Matches[1]
+        }
+        # Aplication部分の切り出し
+        if($line -match "\s*rule\s.*\s(.*?)\sfrom.*"){
+            $rule_app = $Matches[1]
+        }
+        # From部分の切り出し
+        if($line -match "\s*rule\s.*\sfrom\s(.*?)\s.*"){
+            $rule_from = $Matches[1]
+        }
+        # To部分の切り出し
+        if($line -match "\s*rule\s.*\sto\s(.*)"){
+            $t1 = $Matches[1]
+            # 文末に、"no-state-enforcement"がある場合とない場合
+            if($t1 -match "(.*)\sno-state-enforcement"){
+                # Stateモードの切り出し
+                $rule_to = $Matches[1]
+                $rule_state = $false
+            }else{
+                $rule_to = $t1
+                
+            }
+        }
+        
+        $rule = [PSCustomObject]@{
+            NO     = $rule_number
+            ACTION = $rule_action
+            APP = $rule_app
+            FROM = $rule_from
+            TO = $rule_to
+            STATE  = $rule_state
+        }
+
+        $this.list.add($rule)
+    }
+
+
+    
 }
 
-class IZONE{}
 
-class IPADDRES :IZONE{
-    [System.Net.IPAddress]$ipaddres
-    [string]$dynamic=$false
-    [string]$interface=""
-    IPADDRES([string]$ip){
-        $parsedIP = $null
-        if ([System.Net.IPAddress]::TryParse($ip, [ref]$parsedIP)) {
-            $this.ipaddres = $parsedIP
-            $this.dynamic = $false
-        }else{
-            if($ip -match ".* interface (.*)$"){
-                $this.interface = $Matches[1] 
-            }
+
+class IPADDRESS {
+    #[System.Net.IPAddress]$ipaddress
+    [string]$ipaddress
+    [string]$dynamic 
+    [string]$interface
+    IPADDRESS([string]$ip){
+        $this.dynamic = $false
+        if($ip -match "(.*) interface (.*)$"){
+            $this.ipaddress = $ip
+            $this.interface = $Matches[2] 
             $this.dynamic = $true
+        }else{
+            $this.ipaddress = $ip
+            $this.interface=""
         }
     }
-
 }
 
-class HOST :IZONE{
-    $name = ""
-    $ipaddress = [System.Collections.Generic.List[IPADDRES]]::new()
-    
-    HOST($name){
-        $this.name = $name
-        
-    }
-    AddIpAdress([string]$ip){
-        $this.ipaddress.add([IPADDRES]::new($ip))
-    }
-    
 
-}
-
-class IPSUBNET :IZONE{
+class IPSUBNET {
     [string]$zonename = ""
     [string]$ipsubnet=""
-    [string]$ifname = ""
+
     
     IPSUBNET([string]$zone,[string]$ipsubnet){
         $this.zonename = $zone
@@ -64,17 +111,18 @@ class IPSUBNET :IZONE{
 }
 
 
-class NETWORK :IZONE{
+class NETWORK {
     $zonename = ""
     $name = ""
     $ipsubnets 
     $hosts
-
+    $lasthostname
+    
     NETWORK([string]$zonename , [string]$name){
         $this.name = $name
         $this.zonename = $zonename
         $this.ipsubnets = [System.Collections.Generic.List[IPSUBNET]]::new()
-        $this.hosts = [System.Collections.Generic.List[HOST]]::new()
+        $this.hosts = [System.Collections.Generic.Dictionary[string,[IPADDRESS[]] ]]::new()
     }
 
     AddIpSubnet([string]$ips){
@@ -83,10 +131,16 @@ class NETWORK :IZONE{
     }
     
     AddHost($name){
-        $t1 = [HOST]::new($name)
-        $this.hosts.add($t1)
+        $this.hosts.add($name,$null)
+        $this.lasthostname = $name
     }
 
+    AddIp([string]$ip){
+        $t = [IPADDRESS]::new($ip)
+        $this.hosts[$this.lasthostname] +=$t
+
+        
+    }
 }
 
 class ZONEMODE :IMODEBASE{
@@ -105,20 +159,19 @@ class ZONEMODE :IMODEBASE{
             $this.nwlist.add([NETWORK]::new($this.name,$Matches[1]))
             return
         }
-        
+
+        $LastNW = $this.nwlist.Count -1
         if($line -match "^ip subnet (.*$)$"){
-            $this.nwlist[$this.nwlist.Count - 1].AddIpSubnet($Matches[1])
+            $this.nwlist[$LastNW].AddIpSubnet($Matches[1])
             return
         }
         if($line -match "^host (.*$)$"){
-            $this.nwlist[$this.nwlist.Count - 1].AddHost($Matches[1])
+            $this.nwlist[$LastNW].AddHost($Matches[1])
             return
         }
 
         if($line -match "^ip address (.*$)$"){
-            $LastNW = $this.nwlist.Count -1
-            $LastHost = $this.nwlist[$LastNW].hosts.count -1
-            $this.nwlist[$LastNW].hosts[$LastHost].AddIpAdress($Matches[1])
+            $this.nwlist[$LastNW].AddIp($Matches[1])
             return
         }
         
@@ -140,7 +193,6 @@ class ARCONFIG{
     
     [GLOBALMODE]$globalmode 
     [System.Collections.Generic.Dictionary[string, [ZONEMODE]]]$zonelist 
-    #[System.Collections.Generic.Dictionary[int, [FIREWAREMODE]]]$firewallrule
     [FIREWAREMODE]$firewall
     [VLANMODE]$vlanlist
     [string]$hostname
@@ -151,6 +203,49 @@ class ARCONFIG{
     }
 
 
+}
+
+
+class EXPORTARCONFIG{
+
+    EXPORTARCONFIG(){
+        #$this.data = $a
+    }
+
+    [string[]]GetZone([ref]$data,$zonename,$netname,$hostname){
+        # ゾーン名、サブネット名、ホスト名が指定された場合、ipアドレスを返す(List)
+        $res = @()
+        foreach($nw in $data.Value.zonelist[$zonename].nwlist){
+            if($nw.name -eq $netname){
+                #$res += $nw.ipsubnets.ipsubnet
+                $res += $nw.hosts[$hostname].ipaddress
+            }
+        }
+
+        return $res
+    }
+    
+    [string[]]GetZone([ref]$data,$zonename,$netname){
+        # ゾーン名、サブネット名が指定された場合、指定サブネットを返す(List)
+        $res = @()
+        foreach($nw in $data.Value.zonelist[$zonename].nwlist){
+            if($nw.name -eq $netname){
+                $res += $nw.ipsubnets.ipsubnet
+            }
+        }
+        return $res
+    }
+
+    [string[]]GetZone([ref]$data,$zonename){
+        # ゾーン名のみ指定された場合、すべてのサブネットを返す（List）
+        $res = @()
+        foreach($nw in $data.Value.zonelist[$zonename].nwlist){
+            $res += $nw.ipsubnets.ipsubnet
+            
+        }
+        return $res
+    }
+    
 }
 
 
@@ -196,20 +291,10 @@ function ConvertFrom-ARConfig{
 
 
 function main(){
-    $ARCONFIG = ConvertFrom-ARConfig -FilePath "C:\Users\stsuji\OneDrive\ドキュメント\scripts\e-h-ago_L3.txt"
-    foreach($temp in $ARCONFIG.zonelist.Keys){
-        write-host $temp -ForegroundColor Blue
-        foreach($a in $ARCONFIG.zonelist[$temp]){
-            foreach($b in $a.nwlist){
-                write-host $b.name -ForegroundColor Yellow
-                write-host "  "$b.ipsubnets.ipsubnet
-                foreach($c in $b.hosts){
-                    write-host $c.name -ForegroundColor Red
-                    write-host "   "$c.ipaddress.ipaddres 
-                }
-            }
-        }
-    }
+    $ARCONFIG = ConvertFrom-ARConfig -FilePath $path
+    $output = [EXPORTARCONFIG]::new()
+    $output.GetZone([ref]$ARCONFIG,"private","TC","direct")
+
 }
 
 main
