@@ -1,7 +1,6 @@
-
-
-using module ".\FirewallAnalizer_Class.psm1"
+using module ".\alliedtelesis_config_checker_class.psm1"
 param($filename)
+
 
 
 
@@ -11,17 +10,12 @@ param($filename)
 function main{
     param($filename)
     
-    [ARCONFIG]$a = [ARCONFIG]::new()
-    $a.ReadConfig($filename)
-    #$a.ExportCSVfromFirewall()
-    
-    #foreach($i in $a.vlanlist.values){
-    #    write-host $i.print()
-    #}
-    foreach($i in $a.interfacelist){
-        #write-host $i.name
-    }
+    $ARCONFIG = ConvertFrom-ARConfig -FilePath $filename
+    $output = [EXPORTARCONFIG]::new()
+    #$output.GetZoneAddress($ARCONFIG,"private","TC","direct")
+    $output.GetFirewallRule($ARCONFIG,10)
 
+   
 }
 
 

@@ -62,7 +62,7 @@ class FIREWAREMODE :IMODEBASE{
         }
         
         $rule = [PSCustomObject]@{
-            NO     = $rule_number
+            NO     = [int]$rule_number
             ACTION = $rule_action
             APP = $rule_app
             FROM = $rule_from
@@ -212,10 +212,33 @@ class EXPORTARCONFIG{
         #$this.data = $a
     }
 
-    [string[]]GetZone([ref]$data,$zonename,$netname,$hostname){
+    [PSCustomObject]GetFirewallRule($data,$num){
+        $res = @()
+        foreach($a in $data.firewall.list){
+            if($a.NO -eq $num){
+                
+                # GetFromAddress
+                $b = $a.FROM.split(".")
+                $from1,$f2,$3 = if($b.count -eq "3"){
+                    $this.GetZoneAddress($data,$b[0],$b[1],$b[2])
+                }elseif($b.count -eq "2"){
+                    $this.GetZoneAddress($data,$b[0],$b[1])
+                }elseif($b.count -eq "1"){
+                    $this.GetZoneAddress($data,$b[0])
+                }
+                
+                write-host $f2
+            }
+        }
+        
+        return $res
+    
+    }
+ 
+    [string[]]GetZoneAddress($data,$zonename,$netname,$hostname){
         # ゾーン名、サブネット名、ホスト名が指定された場合、ipアドレスを返す(List)
         $res = @()
-        foreach($nw in $data.Value.zonelist[$zonename].nwlist){
+        foreach($nw in $data.zonelist[$zonename].nwlist){
             if($nw.name -eq $netname){
                 #$res += $nw.ipsubnets.ipsubnet
                 $res += $nw.hosts[$hostname].ipaddress
@@ -225,10 +248,10 @@ class EXPORTARCONFIG{
         return $res
     }
     
-    [string[]]GetZone([ref]$data,$zonename,$netname){
+    [string[]]GetZoneAddress($data,$zonename,$netname){
         # ゾーン名、サブネット名が指定された場合、指定サブネットを返す(List)
         $res = @()
-        foreach($nw in $data.Value.zonelist[$zonename].nwlist){
+        foreach($nw in $data.zonelist[$zonename].nwlist){
             if($nw.name -eq $netname){
                 $res += $nw.ipsubnets.ipsubnet
             }
@@ -236,10 +259,10 @@ class EXPORTARCONFIG{
         return $res
     }
 
-    [string[]]GetZone([ref]$data,$zonename){
+    [string[]]GetZoneAddress($data,$zonename){
         # ゾーン名のみ指定された場合、すべてのサブネットを返す（List）
         $res = @()
-        foreach($nw in $data.Value.zonelist[$zonename].nwlist){
+        foreach($nw in $data.zonelist[$zonename].nwlist){
             $res += $nw.ipsubnets.ipsubnet
             
         }
@@ -290,11 +313,3 @@ function ConvertFrom-ARConfig{
 
 
 
-function main(){
-    $ARCONFIG = ConvertFrom-ARConfig -FilePath $path
-    $output = [EXPORTARCONFIG]::new()
-    $output.GetZone([ref]$ARCONFIG,"private","TC","direct")
-
-}
-
-main
